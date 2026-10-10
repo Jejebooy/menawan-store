@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { BarChart3, TrendingUp, ShoppingCart, CheckCircle2, Clock, XCircle, Download, RefreshCw, Package, DollarSign, AlertTriangle } from "lucide-react";
+import { BarChart3, TrendingUp, ShoppingCart, Clock, Download, RefreshCw, Package, DollarSign, AlertTriangle } from "lucide-react";
 import { getDateRange, fetchSalesSummary, fetchDailySales, fetchTopProducts, fetchOrdersInRange, exportOrdersToCSV } from "../../services/reportService";
 import { formatRupiah } from "../../utils/format";
 import { STATUS_CONFIG } from "../../services/orderService";
@@ -40,7 +40,6 @@ export default function Reports() {
     setError("");
     try {
       const range = getDateRange(period);
-
       const [sum, dailySales, top, orderList] = await Promise.all([fetchSalesSummary(range), fetchDailySales(range), fetchTopProducts(range), fetchOrdersInRange({ ...range, status: statusFilter || undefined })]);
 
       setSummary(sum);
@@ -120,7 +119,7 @@ export default function Reports() {
             <h2 className="font-bold mb-4 flex items-center gap-2">
               <BarChart3 size={18} /> Penjualan Harian
             </h2>
-            {daily.length === 0 ? <div className="py-12 text-center text-gray-400 text-sm">Belum ada data penjualan di periode ini.</div> : <DailyChart data={daily} />}
+            <DailyChart data={daily} />
           </div>
 
           {/* TOP PRODUK */}
@@ -248,31 +247,55 @@ function SummaryCard({ icon: Icon, label, value, sub, color, small }) {
 }
 
 /**
- * Chart sederhana — bar chart dengan div (tanpa library)
+ * Chart bar sederhana — dengan tinggi eksplisit supaya bar SELALU terlihat
  */
 function DailyChart({ data }) {
-  const maxTotal = Math.max(...data.map((d) => d.total), 1);
+  if (!data || data.length === 0) {
+    return <div className="py-12 text-center text-gray-400 text-sm">Belum ada data penjualan di periode ini.</div>;
+  }
+
+  const maxTotal = Math.max(...data.map((d) => d.total || 0), 1);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-end gap-1 h-48 overflow-x-auto pb-2">
+      {/* Chart area */}
+      <div className="flex items-end gap-2 overflow-x-auto pb-2" style={{ height: "260px" }}>
         {data.map((d) => {
-          const height = (d.total / maxTotal) * 100;
+          const heightPercent = maxTotal > 0 ? (d.total / maxTotal) * 100 : 0;
           const date = new Date(d.date);
           const label = date.toLocaleDateString("id-ID", {
             day: "2-digit",
             month: "short",
           });
+
           return (
-            <div key={d.date} className="flex flex-col items-center gap-1 shrink-0 group relative" style={{ minWidth: "40px" }}>
-              <div className="text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition absolute -top-5 whitespace-nowrap">{formatRupiah(d.total)}</div>
-              <div className="w-8 bg-accent-500 rounded-t hover:bg-accent-600 transition cursor-pointer" style={{ height: `${Math.max(height, 4)}%` }} title={`${label}: ${formatRupiah(d.total)} (${d.count} order)`} />
+            <div key={d.date} className="flex flex-col items-center justify-end gap-1 shrink-0 group relative h-full" style={{ minWidth: "48px" }}>
+              {/* Tooltip on hover */}
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                {label}: {formatRupiah(d.total)} · {d.count} order
+              </div>
+
+              {/* Value on top of bar */}
+              <div className="text-[10px] text-gray-600 font-medium whitespace-nowrap">{formatRupiah(d.total)}</div>
+
+              {/* Bar */}
+              <div
+                className="w-8 bg-accent-500 rounded-t hover:bg-accent-600 transition cursor-pointer"
+                style={{
+                  height: `${Math.max(heightPercent, 8)}%`,
+                  minHeight: "24px",
+                }}
+                title={`${label}: ${formatRupiah(d.total)} (${d.count} order)`}
+              />
+
+              {/* Date label */}
               <span className="text-[10px] text-gray-500 whitespace-nowrap">{label}</span>
             </div>
           );
         })}
       </div>
-      <div className="text-xs text-gray-500 text-center">Hover bar untuk detail · Total {data.length} hari</div>
+
+      <div className="text-xs text-gray-500 text-center">Hover bar untuk detail · Total {data.length} hari dengan penjualan</div>
     </div>
   );
 }
